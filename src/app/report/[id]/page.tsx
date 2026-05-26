@@ -1,9 +1,8 @@
 // src/app/report/[id]/page.tsx
-// src/app/report/[id]/page.tsx (Fixing lines 2 and 5)
-import { supabaseServer } from "@/lib/supabase"; // Cleaned alias path
+import { supabaseServer } from "@/lib/supabase";
 import { notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge"; // Will find the freshly installed file
+import { Badge } from "@/components/ui/badge";
 import { ChevronRight, Award, MessageSquare, AlertTriangle, Lightbulb } from "lucide-react";
 
 interface ReportPageProps {
@@ -13,15 +12,42 @@ interface ReportPageProps {
 export default async function ReportPage({ params }: ReportPageProps) {
   const { id } = await params;
 
-  // Fetch data directly from Supabase using server-side rendering
-  const { data: report, error } = await supabaseServer
-    .from("interview_reports")
-    .select("*")
-    .eq("id", id)
-    .single();
+  let report;
 
-  if (error || !report) {
-    notFound();
+  // 1. Intercept the Free Simulation ID and populate high-quality sample feedback
+  if (id === "mock-free-report-id") {
+    report = {
+      id: "MOCK-FREE-SESSION-PREVIEW",
+      overall_score: 8,
+      readiness_level: "Interview Ready",
+      fluency: "Great structural flow and consistent articulation pacing throughout the test interaction blocks. Minimal long hesitation patterns detected.",
+      confidence: "Maintained a strong tone of voice delivery. Sentence structures remained cohesive and assertive without trailing off.",
+      vocabulary: "Clear usage of functional engineering vocabulary terms. Lexicon choice was highly relevant to the simulated internship prompt context.",
+      grammar: "Solid grammatical framework overall. Minor structural tense mismatches noted during spontaneous thought expansion segments.",
+      strengths: [
+        "Strong, engaging opener during the personal introduction segment.",
+        "Excellent contextual vocabulary selection tailored for modern tech roles.",
+        "Consistent spoken delivery volume and solid conversational sentence pace."
+      ],
+      areas_to_improve: [
+        "Slightly overusing filler conjunctions when transitioning between long points.",
+        "Can expand more on specific project outcomes instead of just listing responsibilities."
+      ],
+      filler_words: ["um", "like", "basically"],
+      suggested_focus: "Practice slowing down for half a second when transitioning between thoughts. This will give you time to structure complex sentences without relying on default filler expressions."
+    };
+  } else {
+    // 2. Otherwise, carry out the standard live production Supabase query lookup
+    const { data, error } = await supabaseServer
+      .from("interview_reports")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error || !data) {
+      notFound();
+    }
+    report = data;
   }
 
   return (
@@ -74,12 +100,12 @@ export default async function ReportPage({ params }: ReportPageProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           
           {/* Strengths */}
-          <div className="p-6 rounded-2xl bg-zinc-900/20 border border-zinc-900 space-y-4">
+          <div className="p-6 rounded-2xl bg-zinc-900/20 border border-zinc-900/40 space-y-4">
             <h3 className="text-sm font-medium text-zinc-300 flex items-center gap-2">
               <ChevronRight className="w-4 h-4 text-emerald-500" /> Key Strengths
             </h3>
             <ul className="space-y-2">
-              {(report.strengths as string[]).map((strength, index) => (
+              {(report.strengths as string[]).map((strength: string, index: number) => (
                 <li key={index} className="text-xs font-light text-zinc-400 leading-relaxed bg-zinc-900/40 px-3 py-2 rounded-lg border border-zinc-800/40">
                   {strength}
                 </li>
@@ -88,12 +114,12 @@ export default async function ReportPage({ params }: ReportPageProps) {
           </div>
 
           {/* Areas to Improve */}
-          <div className="p-6 rounded-2xl bg-zinc-900/20 border border-zinc-900 space-y-4">
+          <div className="p-6 rounded-2xl bg-zinc-900/20 border border-zinc-900/40 space-y-4">
             <h3 className="text-sm font-medium text-zinc-300 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-500 stroke-[1.5]" /> Areas to Improve
             </h3>
             <ul className="space-y-2">
-              {(report.areas_to_improve as string[]).map((area, index) => (
+              {(report.areas_to_improve as string[]).map((area: string, index: number) => (
                 <li key={index} className="text-xs font-light text-zinc-400 leading-relaxed bg-zinc-900/40 px-3 py-2 rounded-lg border border-zinc-800/40">
                   {area}
                 </li>
@@ -114,7 +140,7 @@ export default async function ReportPage({ params }: ReportPageProps) {
               <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Detected Filler Words</span>
               <div className="flex flex-wrap gap-2 pt-1">
                 {(report.filler_words as string[]).length > 0 ? (
-                  (report.filler_words as string[]).map((word, idx) => (
+                  (report.filler_words as string[]).map((word: string, idx: number) => (
                     <Badge key={idx} variant="outline" className="border-zinc-800 text-zinc-400 font-mono text-[10px] px-2.5 py-0.5 bg-zinc-900/60">
                       "{word}"
                     </Badge>

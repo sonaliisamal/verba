@@ -1,7 +1,7 @@
 // src/app/api/session/route.ts
 import { NextResponse } from "next/server";
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
@@ -9,6 +9,12 @@ export async function POST() {
         { error: "OpenAI API key is missing in environment variables" },
         { status: 500 }
       );
+    }
+
+    // Receive the browser's raw SDP connection offer
+    const { sdp } = await request.json();
+    if (!sdp) {
+      return NextResponse.json({ error: "Missing SDP browser offer" }, { status: 400 });
     }
 
     const systemPrompt = `
@@ -46,44 +52,44 @@ FIRST MESSAGE TO USER:
 "Hi, welcome to the interview session. I'm going to conduct a mock interview today focusing on communication, confidence, and conversational skills. Relax and answer naturally, just like a real interview. So, to begin — could you briefly introduce yourself?"
 `;
 
-    // Request an ephemeral session token with specific configurations from OpenAI Realtime API
-    const response = await fetch("https://api.openai.com/v1/realtime/sessions", {
+    // Construct the GA Session Configuration Object
+    const sessionConfig = {
+      model: "gpt-realtime", // Production GA real-time model
+      voice: "alloy",
+      instructions: systemPrompt.trim(),
+      turn_detection: { type: "server_vad" }
+    };
+
+    // GA WebRTC requires building a multipart/form-data payload containing both the SDP and the configuration parameters
+    const formData = new FormData();
+    formData.append("sdp", sdp);
+    formData.append("session", JSON.stringify(sessionConfig));
+
+    // Post straight to the new GA Realtime Calls interface
+    const response = await fetch("https://api.openai.com/v1/realtime/calls", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model: "gpt-4o-realtime-preview",
-        voice: "alloy",
-        modalities: ["audio", "text"],
-        instructions: systemPrompt.trim(),
-        turn_detection: {
-          type: "server_vad",
-          threshold: 0.5,
-          prefix_padding_ms: 300,
-          silence_duration_ms: 500,
-        },
-      }),
+      body: formData,
     });
 
     if (!response.ok) {
       const errorData = await response.text();
       return NextResponse.json(
-        { error: `OpenAI API error: ${errorData}` },
+        { error: `OpenAI GA API Error: ${errorData}` },
         { status: response.status }
       );
     }
 
-    const data = await response.json();
+    // OpenAI sends back its answering SDP string directly in the text body response
+    const answerSdp = await response.text();
     
-    return NextResponse.json({
-      clientSecret: data.client_secret.value,
+    return new NextResponse(answerSdp, {
+      headers: { "Content-Type": "application/sdp" },
     });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
-    );
+    console.error("Backend Handshake Error:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
